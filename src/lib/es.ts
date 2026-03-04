@@ -85,6 +85,7 @@ export async function fetchDocuments(
   pageSize: number
 ): Promise<SearchResult> {
   sources = sources.filter(item => item !== "yelp");
+  sources.sort()
   const from = (page - 1) * pageSize;
   const query = {
     bool: {
