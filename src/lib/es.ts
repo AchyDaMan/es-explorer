@@ -57,46 +57,34 @@ export interface SearchResult {
   rows: DocFields[];
 }
 
-export async function fetchSources(month: string): Promise<string[]> {
+export async function fetchSources(month: string, airports: string[] = []): Promise<string[]> {
+  /*
+  const filter: object[] = [{ term: { month } }];
+  if (airports.length > 0) filter.push({ terms: { "airport.keyword": airports } });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await esPost("_search", {
     size: 0,
-    query: {
-      term: {
-        month: month
-      }
-    },
-    aggs: {
-      sources: {
-        terms: {
-          field: "restaurant_source.keyword",
-          size: 50
-        }
-      }
-    }
+    query: { bool: { filter } },
+    aggs: { sources: { terms: { field: "restaurant_source.keyword", size: 50 } } },
   });
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data.aggregations?.sources?.buckets ?? []).map((b: any) => b.key as string).sort();
-}
+  */
+  return ["chownow", "clover", "menufy", "opentable", "toasttab", "tripadvisor", "ubereats"]
+  }
 
-export async function fetchAirports(): Promise<string[]> {
+export async function fetchAirports(sources: string[] = []): Promise<string[]> {
+  const filter: object[] = [{ term: { month: "2026-01" } }];
+  if (sources.length > 0) filter.push({ terms: { "restaurant_source.keyword": sources } });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await esPost("_search", {
     size: 0,
-    query: { term: { month: "2026-01" } },
-    aggs: {
-      airports: {
-        terms: {
-          field: "airport.keyword",
-          size: 200,
-        },
-      },
-    },
+    query: { bool: { filter } },
+    aggs: { airports: { terms: { field: "airport.keyword", size: 200 } } },
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data.aggregations?.airports?.buckets ?? []).map((b: any) => b.key as string).sort();
-}
+  }
 
 export async function fetchDocuments(
   sources: string[],
@@ -125,7 +113,10 @@ export async function fetchDocuments(
   const data: any = await esPost("_search", {
     size: pageSize,
     from,
-    sort: [{ datetime_timestamp: "desc" }],
+    sort: [
+      { "restaurant_name.keyword": "asc" },
+      { "menu_item_name.keyword": "asc" },
+    ],
     _source: [...FIELDS],
     query,
   });

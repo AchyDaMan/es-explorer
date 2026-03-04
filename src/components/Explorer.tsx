@@ -63,35 +63,57 @@ export default function Explorer() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  /* ---- fetch sources on mount ---- */
+  /* ---- fetch sources (re-runs when airport filter changes) ---- */
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/sources");
+        const params = new URLSearchParams();
+        if (selectedAirports.size > 0) params.set("airports", [...selectedAirports].join(","));
+        const res = await fetch(`/api/sources?${params}`);
         if (!res.ok) throw new Error(`Failed to load sources (${res.status})`);
         const json = await res.json();
-        if (Array.isArray(json)) setAllSources(json);
-        else throw new Error(json.error ?? "Bad response");
+        if (Array.isArray(json)) {
+          setAllSources(json);
+          // drop any selected sources that are no longer available
+          setSelected((prev) => {
+            const valid = new Set(json as string[]);
+            const next = new Set([...prev].filter((s) => valid.has(s)));
+            return next.size === prev.size ? prev : next;
+          });
+        } else {
+          throw new Error(json.error ?? "Bad response");
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to load sources");
       }
     })();
-  }, []);
+  }, [selectedAirports]);
 
-  /* ---- fetch airports on mount ---- */
+  /* ---- fetch airports (re-runs when source filter changes) ---- */
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/airports");
+        const params = new URLSearchParams();
+        if (selected.size > 0) params.set("sources", [...selected].join(","));
+        const res = await fetch(`/api/airports?${params}`);
         if (!res.ok) throw new Error(`Failed to load airports (${res.status})`);
         const json = await res.json();
-        if (Array.isArray(json)) setAllAirports(json);
-        else throw new Error(json.error ?? "Bad response");
+        if (Array.isArray(json)) {
+          setAllAirports(json);
+          // drop any selected airports that are no longer available
+          setSelectedAirports((prev) => {
+            const valid = new Set(json as string[]);
+            const next = new Set([...prev].filter((a) => valid.has(a)));
+            return next.size === prev.size ? prev : next;
+          });
+        } else {
+          throw new Error(json.error ?? "Bad response");
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to load airports");
       }
     })();
-  }, []);
+  }, [selected]);
 
   /* ---- fetch table data ---- */
   const fetchData = useCallback(async (sources: Set<string>, airports: Set<string>, pg: number) => {
