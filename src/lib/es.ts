@@ -76,7 +76,7 @@ export async function fetchSources(month: string): Promise<string[]> {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data.aggregations?.sources?.buckets ?? []).map((b: any) => b.key as string);
+  return (data.aggregations?.sources?.buckets ?? []).map((b: any) => b.key as string).sort();
 }
 
 export async function fetchDocuments(
