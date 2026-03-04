@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(sp.get("pageSize") ?? "50", 10) || 50)
     );
 
-    const result = await fetchDocuments(sources, airports, page, pageSize);
+    const keyword = sp.get("keyword") ?? "";
+    const result = await fetchDocuments(sources, airports, page, pageSize, keyword);
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

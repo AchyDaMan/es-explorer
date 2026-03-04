@@ -47,6 +47,7 @@ export default function Explorer() {
 
   /* search */
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   /* ui state */
   const [loading, setLoading] = useState(false);
@@ -119,8 +120,17 @@ export default function Explorer() {
     })();
   }, [selected]);
 
+  /* ---- debounce search query ---- */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   /* ---- fetch table data ---- */
-  const fetchData = useCallback(async (sources: Set<string>, airports: Set<string>, pg: number) => {
+  const fetchData = useCallback(async (sources: Set<string>, airports: Set<string>, pg: number, kw: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -129,6 +139,7 @@ export default function Explorer() {
       if (airports.size > 0) params.set("airports", [...airports].join(","));
       params.set("page", String(pg));
       params.set("pageSize", String(PAGE_SIZE));
+      if (kw.trim()) params.set("keyword", kw.trim());
       const res = await fetch(`/api/search?${params}`);
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
       const json = await res.json();
@@ -141,10 +152,10 @@ export default function Explorer() {
     }
   }, []);
 
-  /* initial load + refetch on filter/page change */
+  /* initial load + refetch on filter/page/keyword change */
   useEffect(() => {
-    fetchData(selected, selectedAirports, page);
-  }, [selected, selectedAirports, page, fetchData]);
+    fetchData(selected, selectedAirports, page, debouncedQuery);
+  }, [selected, selectedAirports, page, debouncedQuery, fetchData]);
 
   /* ---- handlers ---- */
   const toggleSource = (s: string) => {
@@ -178,27 +189,16 @@ export default function Explorer() {
   /* ---- derived rows: search + dedupe ---- */
   const displayedRows = useMemo(() => {
     if (!data) return [];
-    let rows = data.rows;
 
-    // 1. keyword search across all visible cells
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((row) =>
-        COLUMNS.some((c) => String(row[c.key] ?? "").toLowerCase().includes(q))
-      );
-    }
-
-    // 2. deduplicate: keep first occurrence of each unique row (all columns)
+    // deduplicate: keep first occurrence of each unique row (all columns)
     const seen = new Set<string>();
-    rows = rows.filter((row) => {
+    return data.rows.filter((row) => {
       const key = COLUMNS.map((c) => String(row[c.key] ?? "")).join("\0");
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-
-    return rows;
-  }, [data, searchQuery]);
+  }, [data]);
 
   /* ---- format helpers ---- */
   const fmt = (key: string, val: unknown): string => {
@@ -388,7 +388,7 @@ export default function Explorer() {
           Clear
         </button>
         <button
-          onClick={() => fetchData(selected, selectedAirports, page)}
+          onClick={() => fetchData(selected, selectedAirports, page, debouncedQuery)}
           style={{ ...btnStyle, background: "#1a1a2e", color: "#fff", border: "none" }}
         >
           Refresh

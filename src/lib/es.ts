@@ -91,7 +91,8 @@ export async function fetchDocuments(
   sources: string[],
   airports: string[],
   page: number,
-  pageSize: number
+  pageSize: number,
+  keyword = ""
 ): Promise<SearchResult> {
   sources = sources.filter(item => item !== "yelp");
   sources.sort()
@@ -107,6 +108,26 @@ export async function fetchDocuments(
           ? [{ terms: { "airport.keyword": airports } }]
           : []),
       ],
+      ...(keyword.trim()
+        ? {
+            must: {
+              multi_match: {
+                query: keyword.trim(),
+                fields: [
+                  "restaurant_name",
+                  "city",
+                  "state_or_province",
+                  "address",
+                  "menu_item_name",
+                  "description",
+                  "menu_section",
+                ],
+                type: "best_fields",
+                fuzziness: "AUTO",
+              },
+            },
+          }
+        : {}),
     },
   };
 
