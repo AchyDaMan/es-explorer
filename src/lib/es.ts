@@ -43,6 +43,7 @@ export const FIELDS = [
   "state_or_province",
   "address",
   "menu_item_name",
+  "description",
   "menu_section",
   "price",
   "datetime_timestamp",

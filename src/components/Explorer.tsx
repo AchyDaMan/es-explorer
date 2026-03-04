@@ -1,7 +1,7 @@
 // src/components/Explorer.tsx
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ types */
 
@@ -45,6 +45,9 @@ export default function Explorer() {
   const [data, setData] = useState<SearchResult | null>(null);
   const [page, setPage] = useState(1);
 
+  /* search */
+  const [searchQuery, setSearchQuery] = useState("");
+
   /* ui state */
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export default function Explorer() {
       if (airportDropdownRef.current && !airportDropdownRef.current.contains(e.target as Node)) {
         setAirportDropdownOpen(false);
       }
+
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -171,6 +175,31 @@ export default function Explorer() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
+  /* ---- derived rows: search + dedupe ---- */
+  const displayedRows = useMemo(() => {
+    if (!data) return [];
+    let rows = data.rows;
+
+    // 1. keyword search across all visible cells
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((row) =>
+        COLUMNS.some((c) => String(row[c.key] ?? "").toLowerCase().includes(q))
+      );
+    }
+
+    // 2. deduplicate: keep first occurrence of each unique row (all columns)
+    const seen = new Set<string>();
+    rows = rows.filter((row) => {
+      const key = COLUMNS.map((c) => String(row[c.key] ?? "")).join("\0");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return rows;
+  }, [data, searchQuery]);
+
   /* ---- format helpers ---- */
   const fmt = (key: string, val: unknown): string => {
     if (val == null || val === "") return "—";
@@ -208,6 +237,21 @@ export default function Explorer() {
           flexWrap: "wrap",
         }}
       >
+        {/* Search box */}
+        <input
+          type="search"
+          placeholder="Search all columns…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 6,
+            border: "1px solid #d0d5dd",
+            fontSize: 13,
+            minWidth: 200,
+            outline: "none",
+          }}
+        />
         {/* Multi-select dropdown */}
         <div ref={dropdownRef} style={{ position: "relative", minWidth: 240 }}>
           <button
@@ -352,7 +396,9 @@ export default function Explorer() {
 
         {data && (
           <span style={{ marginLeft: "auto", fontSize: 13, color: "#666" }}>
-            {data.total.toLocaleString()} total hits
+            {searchQuery.trim()
+              ? `${displayedRows.length} / ${data.rows.length} shown · ${data.total.toLocaleString()} total`
+              : `${displayedRows.length.toLocaleString()} shown · ${data.total.toLocaleString()} total`}
           </span>
         )}
       </div>
@@ -417,7 +463,7 @@ export default function Explorer() {
                 </tr>
               </thead>
               <tbody>
-                {data.rows.length === 0 ? (
+                {displayedRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={COLUMNS.length}
@@ -427,7 +473,7 @@ export default function Explorer() {
                     </td>
                   </tr>
                 ) : (
-                  data.rows.map((row, i) => (
+                  displayedRows.map((row, i) => (
                     <tr
                       key={i}
                       style={{ borderBottom: "1px solid #f0f0f0" }}
