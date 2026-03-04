@@ -19,6 +19,7 @@ const COLUMNS = [
   { key: "state_or_province", label: "State" },
   { key: "address", label: "Address" },
   { key: "menu_item_name", label: "Menu Item" },
+  { key: "description", label: "Description" },
   { key: "menu_section", label: "Section" },
   { key: "price", label: "Price" },
   { key: "datetime_timestamp", label: "Timestamp" },
