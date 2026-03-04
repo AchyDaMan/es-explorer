@@ -38,6 +38,7 @@ export async function esPost<T = unknown>(path: string, body: object): Promise<T
 export const FIELDS = [
   "restaurant_name",
   "restaurant_source",
+  "airport",
   "city",
   "state_or_province",
   "address",
@@ -79,8 +80,27 @@ export async function fetchSources(month: string): Promise<string[]> {
   return (data.aggregations?.sources?.buckets ?? []).map((b: any) => b.key as string).sort();
 }
 
+export async function fetchAirports(): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await esPost("_search", {
+    size: 0,
+    query: { term: { month: "2026-01" } },
+    aggs: {
+      airports: {
+        terms: {
+          field: "airport.keyword",
+          size: 200,
+        },
+      },
+    },
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.aggregations?.airports?.buckets ?? []).map((b: any) => b.key as string).sort();
+}
+
 export async function fetchDocuments(
   sources: string[],
+  airports: string[],
   page: number,
   pageSize: number
 ): Promise<SearchResult> {
@@ -93,6 +113,9 @@ export async function fetchDocuments(
         { term: { month: "2026-01" } },
         ...(sources.length > 0
           ? [{ terms: { "restaurant_source.keyword": sources } }]
+          : []),
+        ...(airports.length > 0
+          ? [{ terms: { "airport.keyword": airports } }]
           : []),
       ],
     },

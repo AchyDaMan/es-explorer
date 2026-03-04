@@ -35,6 +35,12 @@ export default function Explorer() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  /* airports dropdown */
+  const [allAirports, setAllAirports] = useState<string[]>([]);
+  const [selectedAirports, setSelectedAirports] = useState<Set<string>>(new Set());
+  const [airportDropdownOpen, setAirportDropdownOpen] = useState(false);
+  const airportDropdownRef = useRef<HTMLDivElement>(null);
+
   /* table data */
   const [data, setData] = useState<SearchResult | null>(null);
   const [page, setPage] = useState(1);
@@ -43,11 +49,14 @@ export default function Explorer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ---- close dropdown on outside click ---- */
+  /* ---- close dropdowns on outside click ---- */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (airportDropdownRef.current && !airportDropdownRef.current.contains(e.target as Node)) {
+        setAirportDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -69,13 +78,29 @@ export default function Explorer() {
     })();
   }, []);
 
+  /* ---- fetch airports on mount ---- */
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/airports");
+        if (!res.ok) throw new Error(`Failed to load airports (${res.status})`);
+        const json = await res.json();
+        if (Array.isArray(json)) setAllAirports(json);
+        else throw new Error(json.error ?? "Bad response");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load airports");
+      }
+    })();
+  }, []);
+
   /* ---- fetch table data ---- */
-  const fetchData = useCallback(async (sources: Set<string>, pg: number) => {
+  const fetchData = useCallback(async (sources: Set<string>, airports: Set<string>, pg: number) => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (sources.size > 0) params.set("sources", [...sources].join(","));
+      if (airports.size > 0) params.set("airports", [...airports].join(","));
       params.set("page", String(pg));
       params.set("pageSize", String(PAGE_SIZE));
       const res = await fetch(`/api/search?${params}`);
@@ -92,8 +117,8 @@ export default function Explorer() {
 
   /* initial load + refetch on filter/page change */
   useEffect(() => {
-    fetchData(selected, page);
-  }, [selected, page, fetchData]);
+    fetchData(selected, selectedAirports, page);
+  }, [selected, selectedAirports, page, fetchData]);
 
   /* ---- handlers ---- */
   const toggleSource = (s: string) => {
@@ -106,8 +131,19 @@ export default function Explorer() {
     setPage(1);
   };
 
+  const toggleAirport = (a: string) => {
+    setSelectedAirports((prev) => {
+      const next = new Set(prev);
+      if (next.has(a)) next.delete(a);
+      else next.add(a);
+      return next;
+    });
+    setPage(1);
+  };
+
   const clearFilters = () => {
     setSelected(new Set());
+    setSelectedAirports(new Set());
     setPage(1);
   };
 
@@ -216,11 +252,77 @@ export default function Explorer() {
           )}
         </div>
 
+        {/* Airport multi-select dropdown */}
+        <div ref={airportDropdownRef} style={{ position: "relative", minWidth: 240 }}>
+          <button
+            onClick={() => setAirportDropdownOpen((o) => !o)}
+            style={{
+              ...btnStyle,
+              width: "100%",
+              justifyContent: "space-between",
+              display: "flex",
+              background: "#fff",
+              border: "1px solid #d0d5dd",
+            }}
+          >
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {selectedAirports.size === 0
+                ? "All airports"
+                : `${selectedAirports.size} airport${selectedAirports.size > 1 ? "s" : ""} selected`}
+            </span>
+            <span style={{ marginLeft: 8, fontSize: 12 }}>▾</span>
+          </button>
+          {airportDropdownOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                width: "100%",
+                maxHeight: 260,
+                overflowY: "auto",
+                background: "#fff",
+                border: "1px solid #d0d5dd",
+                borderRadius: 6,
+                boxShadow: "0 4px 12px rgba(0,0,0,.1)",
+                zIndex: 10,
+              }}
+            >
+              {allAirports.length === 0 && (
+                <div style={{ padding: "10px 12px", color: "#888", fontSize: 13 }}>
+                  No airports loaded
+                </div>
+              )}
+              {allAirports.map((a) => (
+                <label
+                  key={a}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "7px 12px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAirports.has(a)}
+                    onChange={() => toggleAirport(a)}
+                  />
+                  {a}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button onClick={clearFilters} style={{ ...btnStyle, background: "#fff", border: "1px solid #d0d5dd" }}>
           Clear
         </button>
         <button
-          onClick={() => fetchData(selected, page)}
+          onClick={() => fetchData(selected, selectedAirports, page)}
           style={{ ...btnStyle, background: "#1a1a2e", color: "#fff", border: "none" }}
         >
           Refresh
